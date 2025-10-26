@@ -1,6 +1,6 @@
-# Reddit Save Overflow
+# ReReaddit
 
-Fully client-side Chrome extension (Manifest V3) that backs up, searches, and exports your saved Reddit posts. No servers, no tracking—everything lives in the browser.
+ReReaddit is a fully client-side Chrome extension (Manifest V3) that backs up, searches, and exports your saved Reddit posts. No servers, no tracking—everything lives in the browser.
 
 ## Capabilities
 - Reddit OAuth via `chrome.identity.launchWebAuthFlow`
@@ -27,11 +27,11 @@ src/
 ## Setup
 1. Create a personal-use Reddit app at <https://www.reddit.com/prefs/apps>.
    - Choose **installed app**.
-   - Temporarily set the redirect URI to `https://127.0.0.1/reddit-save-overflow` (you will replace it after the first load) or note the value returned by `chrome.identity.getRedirectURL('reddit-save-overflow')` once the extension is running.
+   - Temporarily set the redirect URI to `https://127.0.0.1/rereaddit` (you will replace it after the first load) or note the value returned by `chrome.identity.getRedirectURL('rereaddit')` once the extension is running.
    - Copy the generated **client ID**.
 2. Open `src/oauth.js` and replace the placeholders:
    - `CLIENT_ID` → your Reddit client ID
-   - `USER_AGENT` → e.g. `RedditSaveOverflow/0.1 (by u/yourusername)` (Reddit requires this header)
+   - `USER_AGENT` → e.g. `ReReaddit/0.1 (by u/yourusername)` (Reddit requires this header)
 3. Load the extension:
    - Visit `chrome://extensions`
    - Enable **Developer mode**

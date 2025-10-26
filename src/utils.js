@@ -86,12 +86,12 @@ export function formatDateTime(timestamp) {
   return new Date(timestamp).toLocaleString();
 }
 
-export async function exportAsJSON(items, filename = safeFilename("reddit-saves", "json")) {
+export async function exportAsJSON(items, filename = safeFilename("rereaddit-saves", "json")) {
   const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
   await downloadBlob(blob, filename);
 }
 
-export async function exportAsCSV(items, filename = safeFilename("reddit-saves", "csv")) {
+export async function exportAsCSV(items, filename = safeFilename("rereaddit-saves", "csv")) {
   const header = ["title", "subreddit", "author", "created", "url", "permalink", "kind"];
   const rows = items.map((item) => [
     csvEscape(item.title),

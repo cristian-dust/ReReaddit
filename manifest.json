@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Reddit Save Overflow",
+  "name": "ReReaddit",
   "description": "Privacy-first Reddit save manager. Fetch, search, and export without leaving your browser. No data leaves your device.",
   "version": "0.1.0",
   "permissions": [
@@ -18,7 +18,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Reddit Save Overflow",
+    "default_title": "ReReaddit",
     "default_popup": "src/popup.html"
   }
 }

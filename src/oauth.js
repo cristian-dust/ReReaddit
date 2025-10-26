@@ -1,7 +1,7 @@
 import { STORAGE_KEYS, getLocal, setLocal, removeLocal } from "./utils.js";
 
-export const CLIENT_ID = "REPLACE_WITH_REDDIT_APP_ID"; // Replace with your Reddit app client ID
-export const USER_AGENT = "RedditSaveOverflow/0.1 (by u/yourusername)"; // Update with your Reddit username
+export const CLIENT_ID = "6uRA3LIIX9z7qAvZhjhFPM0WDgDiQw"; // Replace with your Reddit app client ID
+export const USER_AGENT = "ReReaddit/0.1 (by u/PleaseSelectAUsername)"; // Update with your Reddit username
 
 const SCOPE = "identity history read save";
 
@@ -33,7 +33,7 @@ export async function clearToken() {
 
 async function login(interactive) {
   assertClientId();
-  const redirectUri = chrome.identity.getRedirectURL("reddit-save-overflow");
+  const redirectUri = chrome.identity.getRedirectURL("rereaddit");
   const state = randomState();
   const authUrl = buildAuthUrl(redirectUri, state);
   const redirect = await new Promise((resolve, reject) => {
