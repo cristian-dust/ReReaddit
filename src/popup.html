@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Reddit Save Overflow</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="profile">
+      <span id="profile-name">Not signed in</span>
+      <span id="profile-status" class="status offline">Offline</span>
+    </div>
+    <div class="actions primary">
+      <button id="login-btn">Login with Reddit</button>
+      <button id="fetch-btn" disabled>Fetch Saves</button>
+    </div>
+  </header>
+
+  <section class="controls">
+    <input id="search-input" type="search" placeholder="Search saved posts" autocomplete="off">
+    <select id="subreddit-filter">
+      <option value="">All subreddits</option>
+    </select>
+  </section>
+
+  <section class="meta">
+    <span id="count-label">0 items</span>
+    <span id="sync-label">Last sync: Never</span>
+  </section>
+
+  <section class="actions secondary">
+    <button id="export-json" disabled>Export JSON</button>
+    <button id="export-csv" disabled>Export CSV</button>
+  </section>
+
+  <p id="progress" hidden>Ready</p>
+
+  <ul id="results" class="results"></ul>
+
+  <template id="result-template">
+    <li class="result">
+      <div class="thumb" hidden></div>
+      <div class="content">
+        <a class="title" target="_blank" rel="noopener"></a>
+        <p class="meta"></p>
+        <div class="buttons">
+          <button class="open-btn">Open</button>
+          <button class="unsave-btn">Unsave</button>
+        </div>
+      </div>
+    </li>
+  </template>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 14px;
+}
+
+body {
+  margin: 0;
+  padding: 12px;
+  width: 360px;
+  background: var(--popup-bg, #f9fafb0d);
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+}
+
+button:disabled {
+  background: #9ca3af80;
+  cursor: default;
+}
+
+.topbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.profile {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.status {
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status.online {
+  background: #22c55e33;
+  color: #16a34a;
+}
+
+.status.offline {
+  background: #f9731633;
+  color: #c2410c;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.primary button {
+  flex: 1;
+}
+
+.secondary {
+  margin: 8px 0;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.controls input,
+.controls select {
+  flex: 1;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  padding: 6px 8px;
+  background: inherit;
+  color: inherit;
+}
+
+.controls select {
+  max-width: 40%;
+}
+
+.meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+#progress {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 6px 0;
+}
+
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.result {
+  display: flex;
+  gap: 8px;
+  background: #11182710;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.thumb {
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  background-size: cover;
+  background-position: center;
+  border-radius: 6px;
+  background-color: #1f293710;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.title {
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.title:hover {
+  text-decoration: underline;
+}
+
+.result .meta {
+  font-size: 12px;
+  color: #6b7280;
+  display: block;
+}
+
+.buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.buttons button {
+  flex: 1;
+  background: #11182720;
+  color: inherit;
+}
+
+.buttons .open-btn {
+  background: #2563eb;
+  color: #fff;
+}
