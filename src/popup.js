@@ -41,7 +41,7 @@ const state = {
   busy: false,
   pagination: {
     currentPage: 1,
-    itemsPerPage: 50,
+    itemsPerPage: 10,
     totalPages: 1
   },
   settings: {
@@ -180,6 +180,21 @@ async function onLogin() {
     // Auto-fetch saves after successful login
     await autoFetchSaves();
     
+  } catch (error) {
+    setProgress(error.message, true);
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function onLogout() {
+  setBusy(true);
+  try {
+    await sendMessage({ type: "oauth.logout" });
+    // clear local profile/state and refresh UI
+    state.profile = null;
+    await refreshState();
+    setProgress("Signed out");
   } catch (error) {
     setProgress(error.message, true);
   } finally {
@@ -437,6 +452,8 @@ function changePage(direction) {
   }
 }
 
+// (scroll helper removed — pagination will not change window scroll)
+
 function buildFuse() {
   if (!state.saves.length) {
     state.fuse = null;
@@ -446,9 +463,8 @@ function buildFuse() {
     keys: [
       { name: "title", weight: 0.5 },
       { name: "selftext", weight: 0.2 },
-      { name: "subreddit", weight: 0.1 },
-      { name: "tags", weight: 0.1 },
-      { name: "author", weight: 0.1 }
+        { name: "subreddit", weight: 0.1 },
+        { name: "author", weight: 0.1 }
     ],
     includeScore: false,
     threshold: 0.35,
@@ -478,12 +494,24 @@ function updateHeader() {
     refs.profileStatus.classList.remove("offline");
     refs.profileStatus.classList.add("online");
     refs.fetch.disabled = false;
+    // Toggle login button to act as logout when signed in
+    try { refs.login.removeEventListener("click", onLogin); } catch(e) {}
+    try { refs.login.removeEventListener("click", onLogout); } catch(e) {}
+    refs.login.textContent = "Logout";
+    refs.login.title = "Sign out of Reddit";
+    refs.login.addEventListener("click", onLogout);
   } else {
     refs.profileName.textContent = "Not signed in";
     refs.profileStatus.textContent = state.saves.length ? "Offline" : "Sign in";
     refs.profileStatus.classList.add("offline");
     refs.profileStatus.classList.remove("online");
     refs.fetch.disabled = true;
+    // Ensure login button is set to login action
+    try { refs.login.removeEventListener("click", onLogout); } catch(e) {}
+    try { refs.login.removeEventListener("click", onLogin); } catch(e) {}
+    refs.login.textContent = "Login with Reddit";
+    refs.login.title = "Login with Reddit OAuth";
+    refs.login.addEventListener("click", onLogin);
   }
 }
 
