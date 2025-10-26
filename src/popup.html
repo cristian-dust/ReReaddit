@@ -7,59 +7,38 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="profile">
-      <span id="profile-name">Not signed in</span>
-      <span id="profile-status" class="status offline">Offline</span>
+    <div class="brand-row">
+      <div class="brand" aria-label="ReReaddit">
+        <span class="brand-mark" aria-hidden="true">RR</span>
+        <div class="brand-copy">
+          <h1>ReReaddit</h1>
+          <p>Saved posts, organized.</p>
+        </div>
+      </div>
+      <div class="profile">
+        <span id="profile-name">Not signed in</span>
+        <span id="profile-status" class="status offline">Offline</span>
+      </div>
     </div>
     <div class="actions primary">
-      <button id="login-btn">Login with Reddit</button>
-      <button id="fetch-btn" disabled>Fetch Saves</button>
+      <button id="login-btn" data-icon="🔐" title="Login with Reddit OAuth">Login with Reddit</button>
+      <button id="fetch-btn" data-icon="🔄" disabled>Fetch Saves</button>
     </div>
   </header>
 
-  <section class="controls">
-    <input id="search-input" type="search" placeholder="Search saved posts" autocomplete="off">
-    <select id="subreddit-filter">
+  <section class="controls" aria-label="Search saved posts">
+    <input id="search-input" type="search" placeholder="Search saved posts or keywords…" autocomplete="off">
+    <select id="subreddit-filter" aria-label="Filter by subreddit">
       <option value="">All subreddits</option>
     </select>
   </section>
 
-  <section class="meta">
+  <section class="meta" aria-live="polite">
     <span id="count-label">0 items</span>
     <span id="sync-label">Last sync: Never</span>
   </section>
 
-  <section class="pagination" id="pagination" hidden>
-    <button id="prev-page" disabled>← Previous</button>
-    <span id="page-info">Page 1 of 1</span>
-    <button id="next-page" disabled>Next →</button>
-  </section>
-
-  <section class="actions secondary">
-    <button id="export-json" disabled>Export JSON</button>
-    <button id="export-csv" disabled>Export CSV</button>
-    <button id="settings-toggle" title="Auto-sync settings">⚙️</button>
-    <button id="donate-btn" title="Support ReReaddit development">💝 Donate</button>
-  </section>
-
-  <section class="settings" id="settings" hidden>
-    <h3>Auto-sync Settings</h3>
-    <label>
-      <input type="checkbox" id="auto-fetch-enabled" checked>
-      Enable automatic syncing
-    </label>
-    <label>
-      <select id="auto-fetch-interval">
-        <option value="1">Every hour</option>
-        <option value="6" selected>Every 6 hours</option>
-        <option value="24">Daily</option>
-        <option value="0">Manual only</option>
-      </select>
-      Sync frequency
-    </label>
-  </section>
-
-  <p id="progress" hidden>Ready</p>
+  <p id="progress" class="progress-message" hidden role="status" aria-live="polite">Ready</p>
 
   <div id="setup-guide" hidden class="setup-guide">
     <h3>First-time Setup Required</h3>
@@ -73,7 +52,60 @@
     <button id="hide-guide">Got it</button>
   </div>
 
-  <ul id="results" class="results"></ul>
+  <ul id="results" class="results" data-empty-message="Fetch your saved posts to get started."></ul>
+
+  <section class="pagination" id="pagination" hidden aria-label="Pagination controls">
+    <button id="prev-page" class="pager" disabled aria-label="Previous page">
+      <span aria-hidden="true">‹</span>
+    </button>
+    <span id="page-info">Page 1 of 1</span>
+    <button id="next-page" class="pager" disabled aria-label="Next page">
+      <span aria-hidden="true">›</span>
+    </button>
+  </section>
+
+  <section class="actions secondary">
+    <button id="export-json" data-icon="📄" disabled>Export JSON</button>
+    <button id="export-csv" data-icon="📊" disabled>Export CSV</button>
+    <button id="settings-toggle" class="icon-button" data-icon="⚙️" title="Auto-sync settings" aria-expanded="false">
+      Settings
+    </button>
+    <button id="donate-btn" class="ghost-button" data-icon="☕" title="Support ReReaddit development">
+      Support
+    </button>
+  </section>
+
+  <section class="settings" id="settings" hidden>
+    <header class="settings-header">
+      <h3>Auto-sync</h3>
+      <p>Automatically refresh your saved posts at the cadence that fits your workflow.</p>
+    </header>
+    <label class="switch">
+      <input type="checkbox" id="auto-fetch-enabled" checked>
+      <span class="switch-label">Enable auto-sync</span>
+      <span class="switch-hint">Keeps your library up to date in the background.</span>
+    </label>
+    <fieldset class="cadence" aria-labelledby="auto-sync-legend">
+      <legend id="auto-sync-legend">Sync cadence</legend>
+      <label>
+        <input type="radio" name="auto-fetch" value="0">
+        Manual only
+      </label>
+      <label>
+        <input type="radio" name="auto-fetch" value="1">
+        Every hour
+      </label>
+      <label>
+        <input type="radio" name="auto-fetch" value="6" checked>
+        Every 6 hours
+      </label>
+      <label>
+        <input type="radio" name="auto-fetch" value="24">
+        Daily
+      </label>
+    </fieldset>
+    <p class="settings-note">Auto-sync runs only when you're signed in and respects Reddit's rate limits.</p>
+  </section>
 
   <template id="result-template">
     <li class="result">

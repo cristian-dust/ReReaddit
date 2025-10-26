@@ -8,6 +8,7 @@ const refs = {
   exportCsv: document.getElementById("export-csv"),
   search: document.getElementById("search-input"),
   filter: document.getElementById("subreddit-filter"),
+  controls: document.querySelector(".controls"),
   count: document.getElementById("count-label"),
   syncLabel: document.getElementById("sync-label"),
   profileName: document.getElementById("profile-name"),
@@ -26,9 +27,10 @@ const refs = {
   settingsToggle: document.getElementById("settings-toggle"),
   settings: document.getElementById("settings"),
   autoFetchEnabled: document.getElementById("auto-fetch-enabled"),
-  autoFetchInterval: document.getElementById("auto-fetch-interval"),
+  autoFetchGroup: document.querySelector(".cadence"),
   donateBtn: document.getElementById("donate-btn")
 };
+refs.autoFetchRadios = Array.from(document.querySelectorAll("input[name='auto-fetch']"));
 
 const state = {
   saves: [],
@@ -45,6 +47,10 @@ const state = {
   settings: {
     autoFetchEnabled: true,
     autoFetchInterval: 6 // hours
+  },
+  searchTerm: "",
+  ui: {
+    settingsOpen: false
   }
 };
 
@@ -54,6 +60,7 @@ init();
 
 function init() {
   wireEvents();
+  setSettingsOpen(false);
   loadSettings();
   refreshState();
 }
@@ -71,7 +78,7 @@ function wireEvents() {
   refs.nextPage.addEventListener("click", () => changePage(1));
   refs.settingsToggle.addEventListener("click", toggleSettings);
   refs.autoFetchEnabled.addEventListener("change", saveSettings);
-  refs.autoFetchInterval.addEventListener("change", saveSettings);
+  refs.autoFetchRadios.forEach((radio) => radio.addEventListener("change", saveSettings));
   refs.donateBtn.addEventListener("click", onDonate);
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
 }
@@ -105,8 +112,8 @@ function shouldAutoFetch() {
   if (!lastSync) return true; // Never synced
   
   const now = Date.now();
-  const intervalHours = parseInt(state.settings.autoFetchInterval);
-  if (intervalHours === 0) return false; // Manual only
+  const intervalHours = parseInt(state.settings.autoFetchInterval, 10);
+  if (!Number.isFinite(intervalHours) || intervalHours <= 0) return false; // Manual only or invalid
   
   const intervalMs = intervalHours * 60 * 60 * 1000;
   
@@ -115,12 +122,19 @@ function shouldAutoFetch() {
 }
 
 function toggleSettings() {
-  refs.settings.hidden = !refs.settings.hidden;
+  setSettingsOpen(!state.ui.settingsOpen);
 }
 
 async function saveSettings() {
   state.settings.autoFetchEnabled = refs.autoFetchEnabled.checked;
-  state.settings.autoFetchInterval = parseInt(refs.autoFetchInterval.value);
+  const selected = refs.autoFetchRadios.find((radio) => radio.checked);
+  if (selected) {
+    state.settings.autoFetchInterval = parseInt(selected.value, 10);
+  }
+  if (!Number.isFinite(state.settings.autoFetchInterval)) {
+    state.settings.autoFetchInterval = 0;
+  }
+  applySettingsUI();
   
   // Save to local storage
   await sendMessage({ 
@@ -134,11 +148,9 @@ async function loadSettings() {
     const response = await sendMessage({ type: "settings.get" });
     if (response?.ok && response.settings) {
       state.settings = { ...state.settings, ...response.settings };
+      state.settings.autoFetchInterval = parseInt(state.settings.autoFetchInterval, 10) || 0;
     }
-    
-    // Update UI
-    refs.autoFetchEnabled.checked = state.settings.autoFetchEnabled;
-    refs.autoFetchInterval.value = state.settings.autoFetchInterval.toString();
+    applySettingsUI();
   } catch (error) {
     console.error("Failed to load settings:", error);
   }
@@ -189,9 +201,9 @@ async function autoFetchSaves() {
     // Check if we should auto-fetch based on interval
     const lastSync = state.meta.lastSync;
     const now = Date.now();
-    const intervalHours = parseInt(state.settings.autoFetchInterval);
+    const intervalHours = parseInt(state.settings.autoFetchInterval, 10);
     
-    if (intervalHours === 0) {
+    if (!Number.isFinite(intervalHours) || intervalHours <= 0) {
       return; // Manual only
     }
     
@@ -296,6 +308,8 @@ async function unsave(name) {
 function runSearch() {
   const term = refs.search.value.trim();
   const filter = refs.filter.value;
+  state.searchTerm = term;
+  refs.controls?.classList.toggle("searching", Boolean(term));
   let candidates = state.saves;
   
   // Filter by subreddit if selected
@@ -322,6 +336,9 @@ function render() {
   const startIndex = (state.pagination.currentPage - 1) * state.pagination.itemsPerPage;
   const endIndex = startIndex + state.pagination.itemsPerPage;
   const pageResults = state.results.slice(startIndex, endIndex);
+  const searchTerm = state.searchTerm;
+  const truncatedTerm = searchTerm.length > 60 ? `${searchTerm.slice(0, 57)}...` : searchTerm;
+  const total = state.results.length;
   
   refs.results.textContent = "";
   const fragment = document.createDocumentFragment();
@@ -334,8 +351,10 @@ function render() {
     const open = node.querySelector(".open-btn");
     const unsaveBtn = node.querySelector(".unsave-btn");
 
-    title.textContent = item.title;
-    title.href = item.permalink || item.url;
+    const titleText = item.title || "Untitled Reddit post";
+    const targetUrl = item.permalink || item.url || "https://www.reddit.com";
+    title.innerHTML = highlight(titleText, searchTerm);
+    title.href = targetUrl;
 
     // Enhanced meta information with better formatting
     const details = [];
@@ -343,10 +362,10 @@ function render() {
     if (item.author) details.push(`u/${item.author}`);
     if (item.score !== undefined) details.push(`${item.score} points`);
     if (item.createdUtc) {
-      const date = new Date(item.createdUtc * 1000);
+      const date = new Date(item.createdUtc);
       details.push(formatDateTime(date));
     }
-    meta.textContent = details.join(" • ");
+    meta.innerHTML = highlight(details.join(" • "), searchTerm);
 
     // Enhanced thumbnail handling
     if (item.thumbnail && item.thumbnail !== "self" && item.thumbnail !== "default" && item.thumbnail.startsWith("http")) {
@@ -356,7 +375,7 @@ function render() {
       thumb.hidden = true;
     }
 
-    open.dataset.url = item.url || item.permalink;
+    open.dataset.url = targetUrl;
     unsaveBtn.dataset.name = item.name;
 
     fragment.appendChild(node);
@@ -364,15 +383,27 @@ function render() {
   
   refs.results.appendChild(fragment);
   
-  // Update count with pagination info
-  const showing = Math.min(state.results.length, state.pagination.itemsPerPage);
-  const total = state.results.length;
-  const allTotal = state.saves.length;
-  
-  if (state.pagination.totalPages > 1) {
-    refs.count.textContent = `${showing} shown (page ${state.pagination.currentPage}/${state.pagination.totalPages}) · ${total} filtered · ${allTotal} total`;
+  if (total === 0) {
+    const hasCachedSaves = state.saves.length > 0;
+    const message = hasCachedSaves
+      ? searchTerm
+        ? `No results for "${truncatedTerm}". Try different keywords or clear filters.`
+        : "No matching posts. Adjust your filters or fetch new saves."
+      : "No saved posts yet. Fetch your Reddit saves to get started.";
+    refs.results.setAttribute("data-empty-message", message);
   } else {
-    refs.count.textContent = `${total} shown · ${allTotal} total`;
+    refs.results.removeAttribute("data-empty-message");
+  }
+
+  // Update count with pagination info
+  const showing = pageResults.length;
+  const allTotal = state.saves.length;
+  const { currentPage, totalPages } = state.pagination;
+  
+  if (totalPages > 1) {
+    refs.count.textContent = `Showing ${showing} of ${total} results · Page ${currentPage}/${totalPages} · ${allTotal} total saves`;
+  } else {
+    refs.count.textContent = `Showing ${total} results · ${allTotal} total saves`;
   }
   
   refs.syncLabel.textContent = `Last sync: ${formatDateTime(state.meta.lastSync)}`;
@@ -472,9 +503,9 @@ function onRuntimeMessage(message) {
 
 function setProgress(text, isError = false) {
   refs.progress.hidden = false;
+  refs.progress.classList.toggle("is-error", isError);
   // Handle multiline text by converting \n to <br>
   refs.progress.innerHTML = text.replace(/\n/g, '<br>');
-  refs.progress.style.color = isError ? "#dc2626" : "#6b7280";
 }
 
 function setBusy(value) {
@@ -483,6 +514,7 @@ function setBusy(value) {
   refs.login.disabled = value;
   refs.exportJson.disabled = value || !state.saves.length;
   refs.exportCsv.disabled = value || !state.saves.length;
+  document.body.classList.toggle("is-busy", value);
 }
 
 function debounce(fn, delay) {
@@ -501,4 +533,59 @@ function sendMessage(payload) {
       else resolve(response);
     });
   });
+}
+
+function applySettingsUI() {
+  refs.autoFetchEnabled.checked = state.settings.autoFetchEnabled;
+  const autoSyncDisabled = !state.settings.autoFetchEnabled;
+  if (refs.autoFetchGroup) {
+    refs.autoFetchGroup.classList.toggle("is-disabled", autoSyncDisabled);
+  }
+  refs.autoFetchRadios.forEach((radio) => {
+    const isMatch = parseInt(radio.value, 10) === parseInt(state.settings.autoFetchInterval, 10);
+    radio.checked = isMatch;
+  });
+  if (refs.autoFetchRadios.length && !refs.autoFetchRadios.some((radio) => radio.checked)) {
+    refs.autoFetchRadios[0].checked = true;
+    state.settings.autoFetchInterval = parseInt(refs.autoFetchRadios[0].value, 10) || 0;
+  }
+  refs.settings?.classList.toggle("auto-sync-disabled", autoSyncDisabled);
+}
+
+function setSettingsOpen(open) {
+  state.ui.settingsOpen = Boolean(open);
+  if (refs.settings) {
+    refs.settings.hidden = !open;
+    refs.settingsToggle?.setAttribute("aria-expanded", String(open));
+    refs.settings.classList.toggle("is-open", open);
+    if (open) {
+      requestAnimationFrame(() => {
+        refs.settings?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      });
+    }
+  }
+}
+
+function highlight(text, term) {
+  const source = text ?? "";
+  if (!term) return escapeHtml(source);
+  try {
+    const pattern = new RegExp(`(${escapeRegExp(term)})`, "gi");
+    return escapeHtml(source).replace(pattern, "<mark>$1</mark>");
+  } catch (error) {
+    return escapeHtml(source);
+  }
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
