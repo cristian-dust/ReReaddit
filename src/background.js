@@ -27,6 +27,23 @@ async function handleMessage(message) {
     case "oauth.logout":
       await clearToken();
       return {};
+    case "oauth.getRedirectUri":
+      return { redirectUri: chrome.identity.getRedirectURL("rereaddit") };
+    case "oauth.getAuthUrl":
+      try {
+        const redirectUri = chrome.identity.getRedirectURL("rereaddit");
+        const state = crypto.getRandomValues(new Uint8Array(16)).reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '');
+        const url = new URL("https://www.reddit.com/api/v1/authorize");
+        url.searchParams.set("client_id", "6uRA3LIIX9z7qAvZhjFPMOWDqDlQw");
+        url.searchParams.set("response_type", "token");
+        url.searchParams.set("state", state);
+        url.searchParams.set("redirect_uri", redirectUri);
+        url.searchParams.set("duration", "temporary");
+        url.searchParams.set("scope", "identity history read save");
+        return { authUrl: url.toString() };
+      } catch (error) {
+        return { authUrl: `Error: ${error.message}` };
+      }
     case "state.get":
       return await loadState();
     case "saves.fetch":
@@ -43,6 +60,12 @@ async function handleMessage(message) {
     case "saves.unsave":
       await unsave(message?.name);
       return {};
+    case "settings.save":
+      await setLocal({ "rereaddit:settings": message.settings });
+      return {};
+    case "settings.get":
+      const settingsData = await getLocal(["rereaddit:settings"]);
+      return { settings: settingsData["rereaddit:settings"] || {} };
     default:
       throw new Error("Unknown message type");
   }

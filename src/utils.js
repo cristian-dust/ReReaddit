@@ -87,23 +87,24 @@ export function formatDateTime(timestamp) {
 }
 
 export async function exportAsJSON(items, filename = safeFilename("rereaddit-saves", "json")) {
-  const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json;charset=utf-8" });
   await downloadBlob(blob, filename);
 }
 
 export async function exportAsCSV(items, filename = safeFilename("rereaddit-saves", "csv")) {
-  const header = ["title", "subreddit", "author", "created", "url", "permalink", "kind"];
+  const header = ["title", "subreddit", "author", "created", "score", "url", "permalink", "kind"];
   const rows = items.map((item) => [
     csvEscape(item.title),
     csvEscape(item.subreddit ? `r/${item.subreddit}` : ""),
     csvEscape(item.author ? `u/${item.author}` : ""),
-    csvEscape(item.createdUtc ? new Date(item.createdUtc).toISOString() : ""),
+    csvEscape(item.createdUtc ? new Date(item.createdUtc * 1000).toISOString() : ""),
+    csvEscape(item.score || 0),
     csvEscape(item.url),
     csvEscape(item.permalink),
     csvEscape(item.kind)
   ]);
   const csv = [header.join(","), ...rows.map((row) => row.join(","))].join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv" });
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   await downloadBlob(blob, filename);
 }
 
@@ -115,16 +116,53 @@ function csvEscape(value) {
 }
 
 export async function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
   try {
-    await new Promise((resolve, reject) => {
-      chrome.downloads.download({ url, filename, saveAs: true }, (downloadId) => {
-        const err = chrome.runtime.lastError;
-        if (err) reject(err);
-        else resolve(downloadId);
+    // For small files, use data URL with downloads API
+    if (blob.size < 2 * 1024 * 1024) { // Less than 2MB
+      const reader = new FileReader();
+      const dataUrl = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
       });
-    });
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+      
+      await new Promise((resolve, reject) => {
+        chrome.downloads.download({ 
+          url: dataUrl, 
+          filename, 
+          saveAs: true 
+        }, (downloadId) => {
+          const err = chrome.runtime.lastError;
+          if (err) reject(err);
+          else resolve(downloadId);
+        });
+      });
+    } else {
+      // For larger files, try alternative approach
+      throw new Error("File too large for direct download");
+    }
+  } catch (error) {
+    console.error("Download failed:", error);
+    
+    // Fallback: try to use text/plain data URL for JSON/CSV
+    try {
+      const text = await blob.text();
+      const dataUrl = `data:text/plain;charset=utf-8,${encodeURIComponent(text)}`;
+      
+      await new Promise((resolve, reject) => {
+        chrome.downloads.download({ 
+          url: dataUrl, 
+          filename, 
+          saveAs: true 
+        }, (downloadId) => {
+          const err = chrome.runtime.lastError;
+          if (err) reject(err);
+          else resolve(downloadId);
+        });
+      });
+    } catch (fallbackError) {
+      console.error("Fallback download failed:", fallbackError);
+      throw new Error("Download failed. Please check if downloads permission is enabled and try again.");
+    }
   }
 }

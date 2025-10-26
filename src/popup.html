@@ -29,12 +29,49 @@
     <span id="sync-label">Last sync: Never</span>
   </section>
 
+  <section class="pagination" id="pagination" hidden>
+    <button id="prev-page" disabled>← Previous</button>
+    <span id="page-info">Page 1 of 1</span>
+    <button id="next-page" disabled>Next →</button>
+  </section>
+
   <section class="actions secondary">
     <button id="export-json" disabled>Export JSON</button>
     <button id="export-csv" disabled>Export CSV</button>
+    <button id="settings-toggle" title="Auto-sync settings">⚙️</button>
+    <button id="donate-btn" title="Support ReReaddit development">💝 Donate</button>
+  </section>
+
+  <section class="settings" id="settings" hidden>
+    <h3>Auto-sync Settings</h3>
+    <label>
+      <input type="checkbox" id="auto-fetch-enabled" checked>
+      Enable automatic syncing
+    </label>
+    <label>
+      <select id="auto-fetch-interval">
+        <option value="1">Every hour</option>
+        <option value="6" selected>Every 6 hours</option>
+        <option value="24">Daily</option>
+        <option value="0">Manual only</option>
+      </select>
+      Sync frequency
+    </label>
   </section>
 
   <p id="progress" hidden>Ready</p>
+
+  <div id="setup-guide" hidden class="setup-guide">
+    <h3>First-time Setup Required</h3>
+    <ol>
+      <li>Go to <a href="https://www.reddit.com/prefs/apps" target="_blank">Reddit Apps</a></li>
+      <li>Create a new "installed app"</li>
+      <li>Use this redirect URI: <code id="redirect-uri-display"></code></li>
+      <li>Copy the client ID to <code>src/oauth.js</code></li>
+      <li>Try logging in again</li>
+    </ol>
+    <button id="hide-guide">Got it</button>
+  </div>
 
   <ul id="results" class="results"></ul>
 

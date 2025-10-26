@@ -7,7 +7,8 @@
     "identity",
     "storage",
     "downloads",
-    "activeTab"
+    "activeTab",
+    "tabs"
   ],
   "host_permissions": [
     "https://www.reddit.com/*",

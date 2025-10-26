@@ -15,7 +15,19 @@ const refs = {
   results: document.getElementById("results"),
   template: document.getElementById("result-template"),
   progress: document.getElementById("progress"),
-  actions: document.querySelector(".actions.secondary")
+  actions: document.querySelector(".actions.secondary"),
+  setupGuide: document.getElementById("setup-guide"),
+  redirectUriDisplay: document.getElementById("redirect-uri-display"),
+  hideGuide: document.getElementById("hide-guide"),
+  pagination: document.getElementById("pagination"),
+  prevPage: document.getElementById("prev-page"),
+  nextPage: document.getElementById("next-page"),
+  pageInfo: document.getElementById("page-info"),
+  settingsToggle: document.getElementById("settings-toggle"),
+  settings: document.getElementById("settings"),
+  autoFetchEnabled: document.getElementById("auto-fetch-enabled"),
+  autoFetchInterval: document.getElementById("auto-fetch-interval"),
+  donateBtn: document.getElementById("donate-btn")
 };
 
 const state = {
@@ -24,7 +36,16 @@ const state = {
   meta: {},
   profile: null,
   fuse: null,
-  busy: false
+  busy: false,
+  pagination: {
+    currentPage: 1,
+    itemsPerPage: 50,
+    totalPages: 1
+  },
+  settings: {
+    autoFetchEnabled: true,
+    autoFetchInterval: 6 // hours
+  }
 };
 
 const debouncedSearch = debounce(runSearch, 150);
@@ -33,17 +54,25 @@ init();
 
 function init() {
   wireEvents();
+  loadSettings();
   refreshState();
 }
 
 function wireEvents() {
   refs.login.addEventListener("click", onLogin);
   refs.fetch.addEventListener("click", onFetch);
+  refs.hideGuide.addEventListener("click", () => refs.setupGuide.hidden = true);
   refs.exportJson.addEventListener("click", () => handleExport("json"));
   refs.exportCsv.addEventListener("click", () => handleExport("csv"));
   refs.search.addEventListener("input", debouncedSearch);
   refs.filter.addEventListener("change", runSearch);
   refs.results.addEventListener("click", onResultsClick);
+  refs.prevPage.addEventListener("click", () => changePage(-1));
+  refs.nextPage.addEventListener("click", () => changePage(1));
+  refs.settingsToggle.addEventListener("click", toggleSettings);
+  refs.autoFetchEnabled.addEventListener("change", saveSettings);
+  refs.autoFetchInterval.addEventListener("change", saveSettings);
+  refs.donateBtn.addEventListener("click", onDonate);
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
 }
 
@@ -58,8 +87,60 @@ async function refreshState() {
     populateFilter();
     runSearch();
     updateHeader();
+    
+    // Auto-fetch if logged in and data is stale
+    if (state.profile?.name && shouldAutoFetch()) {
+      setProgress("Checking for new saves...");
+      await autoFetchSaves();
+    }
   } catch (error) {
     setProgress(error.message, true);
+  }
+}
+
+function shouldAutoFetch() {
+  if (!state.settings.autoFetchEnabled) return false;
+  
+  const lastSync = state.meta.lastSync;
+  if (!lastSync) return true; // Never synced
+  
+  const now = Date.now();
+  const intervalHours = parseInt(state.settings.autoFetchInterval);
+  if (intervalHours === 0) return false; // Manual only
+  
+  const intervalMs = intervalHours * 60 * 60 * 1000;
+  
+  // Auto-fetch if last sync was more than interval ago
+  return (now - lastSync) > intervalMs;
+}
+
+function toggleSettings() {
+  refs.settings.hidden = !refs.settings.hidden;
+}
+
+async function saveSettings() {
+  state.settings.autoFetchEnabled = refs.autoFetchEnabled.checked;
+  state.settings.autoFetchInterval = parseInt(refs.autoFetchInterval.value);
+  
+  // Save to local storage
+  await sendMessage({ 
+    type: "settings.save", 
+    settings: state.settings 
+  });
+}
+
+async function loadSettings() {
+  try {
+    const response = await sendMessage({ type: "settings.get" });
+    if (response?.ok && response.settings) {
+      state.settings = { ...state.settings, ...response.settings };
+    }
+    
+    // Update UI
+    refs.autoFetchEnabled.checked = state.settings.autoFetchEnabled;
+    refs.autoFetchInterval.value = state.settings.autoFetchInterval.toString();
+  } catch (error) {
+    console.error("Failed to load settings:", error);
   }
 }
 
@@ -67,15 +148,81 @@ async function onLogin() {
   setBusy(true);
   try {
     const response = await sendMessage({ type: "oauth.login" });
-    if (!response?.ok) throw new Error(response?.error || "Login failed");
+    if (!response?.ok) {
+      // If login fails due to authorization issues, show setup guide
+      if (response?.error?.includes("Authorization") || response?.error?.includes("redirect")) {
+        const redirectInfo = await sendMessage({ type: "oauth.getRedirectUri" });
+        if (redirectInfo?.ok) {
+          refs.redirectUriDisplay.textContent = redirectInfo.redirectUri;
+          refs.setupGuide.hidden = false;
+        }
+      }
+      throw new Error(response?.error || "Login failed");
+    }
     state.profile = response.profile || null;
     updateHeader();
     refs.fetch.disabled = false;
-    setProgress("Signed in — fetch your saves when ready");
+    refs.setupGuide.hidden = true;
+    setProgress("Signed in — automatically fetching your saves...");
+    
+    // Auto-fetch saves after successful login
+    await autoFetchSaves();
+    
   } catch (error) {
     setProgress(error.message, true);
   } finally {
     setBusy(false);
+  }
+}
+
+function onDonate() {
+  chrome.tabs.create({ url: "https://revolut.me/cristiandust" });
+}
+
+async function autoFetchSaves() {
+  try {
+    // Check settings first
+    if (!state.settings.autoFetchEnabled) {
+      return;
+    }
+    
+    // Check if we should auto-fetch based on interval
+    const lastSync = state.meta.lastSync;
+    const now = Date.now();
+    const intervalHours = parseInt(state.settings.autoFetchInterval);
+    
+    if (intervalHours === 0) {
+      return; // Manual only
+    }
+    
+    const intervalMs = intervalHours * 60 * 60 * 1000;
+    
+    // If we synced recently, skip auto-fetch
+    if (lastSync && (now - lastSync) < intervalMs) {
+      setProgress("Recent sync found — skipping auto-fetch");
+      return;
+    }
+    
+    setProgress(`Auto-syncing saved posts (every ${intervalHours}h)...`);
+    const response = await sendMessage({ type: "saves.fetch", interactive: false, resume: true });
+    if (!response?.ok) throw new Error(response?.error || "Auto-fetch failed");
+    
+    state.meta = response.meta || {};
+    state.profile = response.profile || state.profile;
+    await refreshState();
+    
+    const newCount = response.meta?.total || 0;
+    const oldCount = state.saves.length;
+    const newItems = Math.max(0, newCount - oldCount);
+    
+    if (newItems > 0) {
+      setProgress(`Auto-sync complete — ${newItems} new saves found!`);
+    } else {
+      setProgress("Auto-sync complete — no new saves");
+    }
+  } catch (error) {
+    console.error("Auto-fetch failed:", error);
+    setProgress("Auto-fetch failed — use manual fetch if needed", true);
   }
 }
 
@@ -98,12 +245,24 @@ async function onFetch() {
 
 async function handleExport(kind) {
   try {
-    const ids = state.results.map((item) => item.id || item.name);
+    setBusy(true);
+    setProgress(`Preparing ${kind.toUpperCase()} export...`);
+    
+    // Export filtered results or all saves if no filter
+    const itemsToExport = state.results.length > 0 ? state.results : state.saves;
+    if (itemsToExport.length === 0) {
+      throw new Error("No data to export. Please fetch your saves first.");
+    }
+    
+    const ids = itemsToExport.map((item) => item.id || item.name);
     const response = await sendMessage({ type: `export.${kind}`, ids });
     if (!response?.ok) throw new Error(response?.error || "Export failed");
-    setProgress(`${kind.toUpperCase()} export started`);
+    
+    setProgress(`${kind.toUpperCase()} export completed! Check your Downloads folder.`);
   } catch (error) {
     setProgress(error.message, true);
+  } finally {
+    setBusy(false);
   }
 }
 
@@ -138,20 +297,36 @@ function runSearch() {
   const term = refs.search.value.trim();
   const filter = refs.filter.value;
   let candidates = state.saves;
-  if (filter) candidates = candidates.filter((item) => item.subreddit === filter);
+  
+  // Filter by subreddit if selected
+  if (filter) {
+    candidates = candidates.filter((item) => item.subreddit === filter);
+  }
+  
+  // Apply text search
   if (term && state.fuse) {
-    const hits = state.fuse.search(term, { limit: 200 }).map((entry) => entry.item);
+    const hits = state.fuse.search(term, { limit: 1000 }).map((entry) => entry.item);
     state.results = hits.filter((item) => !filter || item.subreddit === filter);
   } else {
-    state.results = candidates.slice(0, 200);
+    state.results = candidates;
   }
+  
+  // Reset pagination
+  state.pagination.currentPage = 1;
+  state.pagination.totalPages = Math.ceil(state.results.length / state.pagination.itemsPerPage);
+  
   render();
 }
 
 function render() {
+  const startIndex = (state.pagination.currentPage - 1) * state.pagination.itemsPerPage;
+  const endIndex = startIndex + state.pagination.itemsPerPage;
+  const pageResults = state.results.slice(startIndex, endIndex);
+  
   refs.results.textContent = "";
   const fragment = document.createDocumentFragment();
-  state.results.forEach((item) => {
+  
+  pageResults.forEach((item) => {
     const node = refs.template.content.firstElementChild.cloneNode(true);
     const title = node.querySelector(".title");
     const meta = node.querySelector(".meta");
@@ -162,15 +337,23 @@ function render() {
     title.textContent = item.title;
     title.href = item.permalink || item.url;
 
+    // Enhanced meta information with better formatting
     const details = [];
     if (item.subreddit) details.push(`r/${item.subreddit}`);
     if (item.author) details.push(`u/${item.author}`);
-    if (item.createdUtc) details.push(new Date(item.createdUtc).toLocaleDateString());
+    if (item.score !== undefined) details.push(`${item.score} points`);
+    if (item.createdUtc) {
+      const date = new Date(item.createdUtc * 1000);
+      details.push(formatDateTime(date));
+    }
     meta.textContent = details.join(" • ");
 
-    if (item.thumbnail) {
+    // Enhanced thumbnail handling
+    if (item.thumbnail && item.thumbnail !== "self" && item.thumbnail !== "default" && item.thumbnail.startsWith("http")) {
       thumb.style.backgroundImage = `url(${item.thumbnail})`;
       thumb.hidden = false;
+    } else {
+      thumb.hidden = true;
     }
 
     open.dataset.url = item.url || item.permalink;
@@ -178,14 +361,49 @@ function render() {
 
     fragment.appendChild(node);
   });
+  
   refs.results.appendChild(fragment);
-
-  refs.count.textContent = `${state.results.length} shown · ${state.saves.length} total`;
+  
+  // Update count with pagination info
+  const showing = Math.min(state.results.length, state.pagination.itemsPerPage);
+  const total = state.results.length;
+  const allTotal = state.saves.length;
+  
+  if (state.pagination.totalPages > 1) {
+    refs.count.textContent = `${showing} shown (page ${state.pagination.currentPage}/${state.pagination.totalPages}) · ${total} filtered · ${allTotal} total`;
+  } else {
+    refs.count.textContent = `${total} shown · ${allTotal} total`;
+  }
+  
   refs.syncLabel.textContent = `Last sync: ${formatDateTime(state.meta.lastSync)}`;
 
   const hasData = state.saves.length > 0;
   refs.exportJson.disabled = !hasData;
   refs.exportCsv.disabled = !hasData;
+  
+  // Update pagination controls
+  updatePaginationControls();
+}
+
+function updatePaginationControls() {
+  const { currentPage, totalPages } = state.pagination;
+  const showPagination = totalPages > 1;
+  
+  refs.pagination.hidden = !showPagination;
+  
+  if (showPagination) {
+    refs.prevPage.disabled = currentPage <= 1;
+    refs.nextPage.disabled = currentPage >= totalPages;
+    refs.pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+  }
+}
+
+function changePage(direction) {
+  const newPage = state.pagination.currentPage + direction;
+  if (newPage >= 1 && newPage <= state.pagination.totalPages) {
+    state.pagination.currentPage = newPage;
+    render();
+  }
 }
 
 function buildFuse() {
@@ -254,7 +472,8 @@ function onRuntimeMessage(message) {
 
 function setProgress(text, isError = false) {
   refs.progress.hidden = false;
-  refs.progress.textContent = text;
+  // Handle multiline text by converting \n to <br>
+  refs.progress.innerHTML = text.replace(/\n/g, '<br>');
   refs.progress.style.color = isError ? "#dc2626" : "#6b7280";
 }
 
